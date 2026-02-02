@@ -1,0 +1,48 @@
+QMainWindow {
+    background-color: #9FB6CD;
+}
+
+QLabel {
+    color: black;
+}
+
+QTextEdit {
+    color: black;
+    background-color: white;
+}
+
+QPushButton {
+    color: black;
+    border-right: 1px solid black;
+    border-bottom: 1px solid black;
+    border-radius: 0;
+    padding: 6px 10px;
+}
+
+QPushButton#delete_text_button, QPushButton#delete_morse_button {
+    image: url("./assets/images/bin.png");
+    padding: 6px 0px;
+}
+
+QFrame#sound_button {
+    padding: 5px;
+    border: 1px solid #57636f;
+    border-radius: 3px;
+}
+
+QFrame#sound_button:enabled {
+    background-color: #a4b4c5;
+}
+
+QFrame#sound_button:disabled {
+    background-color: #8c9fb2;
+}
+
+QFrame#sound_button:enabled:hover {
+    border-color: white;
+}
+
+QFrame#sound_button:enabled:pressed {
+    border-width: 2px;
+    background-color: #6c8299;
+}

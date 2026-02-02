@@ -1,205 +1,286 @@
-from tkinter import *
-import pandas as pd
-import pygame
-from PIL import Image, ImageTk
+import sys
+from PyQt6.QtWidgets import QApplication, QMainWindow, QWidget, QLabel, QVBoxLayout, QHBoxLayout, QGridLayout, QTextEdit, QSpacerItem, QSizePolicy
+from PyQt6.QtGui import QFont, QPixmap
+from PyQt6.QtCore import Qt
+from button import Button
+from sound_button import SoundButton
+from converter import text_to_morse, morse_to_text
+from morse_player import MorsePlayer
 
-# ---------------------------- CONVERTERS ---------------------------- #
-
-alphabet_data = pd.read_csv("morse_code_alphabet.csv")
-alphabet = {row.letter:row.code for index,row in alphabet_data.iterrows()}
-alphabet["\n"] = "\n"
-reversed_alphabet = {value:key for key,value in alphabet.items()}
-
-def convert_to_morse():
-    global playing
-    playing = False
-    if pygame.mixer.get_busy():
-        pygame.mixer.stop()
-
-    user_input = text_box.get("1.0", "end").rstrip().upper()
-    text_to_convert = list(user_input)
-    output = []
-
-    try:
-        output = [alphabet[letter] for letter in text_to_convert]
-    except KeyError:
-        error_label["text"] = "Sorry, only letters or numbers."
-
-    if len(output) != 0:
-        final_output = ""
-        for symbol in output:
-            if symbol != "\n":
-                final_output += " "
-            final_output += symbol
-        morse_box.delete("1.0", "end")
-        morse_box.insert("1.0", final_output)
-        error_label["text"] = ""
+TITLE_FONT = QFont("Agency FB", 60)
+SUBTITLE_FONT = QFont("Agency FB", 32)
+LABEL_FONT = QFont("@Microsoft JhengHei UI", 13)
+ERROR_LABEL_FONT = QFont("@Microsoft JhengHei UI", 11)
 
 
-def convert_to_text():
-    global playing
-    playing = False
-    if pygame.mixer.get_busy():
-        pygame.mixer.stop()
+class MainWindow(QMainWindow):
 
-    user_input = morse_box.get("1.0", "end").rstrip()
-    morse_lines = user_input.split("\n")
-    output = []
-    for line in morse_lines:
+    def __init__(self):
+        super().__init__()
+
+        self.player = MorsePlayer()
+        self.player.finished_reproduction.connect(self.on_player_finished)
+
+        self.initialize_ui()
+
+
+    def initialize_ui(self):
+        self.setGeometry(100,50,840,530)
+        self.setWindowTitle("Text To Morse Code Converter")
+        self.generate_window()
+        self.show()
+
+
+    def generate_window(self):
+        main_widget = QWidget()
+        self.setCentralWidget(main_widget)
+
+        main_layout = QVBoxLayout()
+        main_layout.setContentsMargins(30, 30, 30, 30)
+        main_widget.setLayout(main_layout)
+
+        title = self.build_title()
+
+        main_layout.addWidget(title)
+        main_layout.addSpacing(30)
+        main_layout.addStretch(1)
+
+        content_layout = self.build_main_content()
+        main_layout.addLayout(content_layout)
+
+        self.error_label = self.build_error_label()
+
+        main_layout.addStretch(2)
+        main_layout.addWidget(self.error_label)
+        main_layout.addStretch(4)
+
+        with open("styles.css", "r") as file:
+            styles = file.read()
+        self.setStyleSheet(styles)
+
+
+    # -------------------------------- UI SETUP -------------------------------- #
+
+    def build_title(self):
+        # WIDGETS
+        title = QWidget()
+
+        title_left = QLabel("TEXT")
+        title_left.setFont(TITLE_FONT)
+        title_left.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignTop)
+        title_left.setObjectName("title_left")
+
+        telegraph_img = QLabel()
+        telegraph_pixmap = QPixmap("./assets/images/telegraph.png")
+        telegraph_pixmap = telegraph_pixmap.scaledToHeight(61, Qt.TransformationMode.SmoothTransformation)
+        telegraph_img.setPixmap(telegraph_pixmap)
+        telegraph_img.setAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop)
+        telegraph_img.setContentsMargins(0,13,0,0)
+
+        title_right = QLabel("MORSE")
+        title_right.setFont(TITLE_FONT)
+        title_right.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+        title_right.setObjectName("title_right")
+
+        title_middle = QLabel("CONVERTER")
+        title_middle.setFont(SUBTITLE_FONT)
+        title_middle.setAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop)
+        title_middle.setObjectName("title_middle")
+
+        # LAYOUT
+        title_layout = QHBoxLayout()
+        title_layout.setContentsMargins(0,0,0,0)
+        title.setLayout(title_layout)
+
+        title_center_layout = QVBoxLayout()
+        title_center_layout.setContentsMargins(0,0,0,0)
+        title_center_layout.addWidget(telegraph_img)
+        title_center_layout.addWidget(title_middle)
+
+        title_layout.addStretch(1)
+        title_layout.addSpacing(54)
+        title_layout.addWidget(title_left)
+        title_layout.addLayout(title_center_layout)
+        title_layout.addWidget(title_right)
+        title_layout.addStretch(1)
+
+        return title
+
+
+    def build_main_content(self):
+        # WIDGETS
+        input_text_label = QLabel("Write or paste your text:")
+        input_text_label.setFont(LABEL_FONT)
+
+        self.text_box = QTextEdit()
+        self.text_box.setFont(LABEL_FONT)
+        self.text_box.setMaximumHeight(250)
+        self.text_box.textChanged.connect(self.update_text_buttons_state)
+
+        self.to_morse_button = Button("Convert to morse")
+        self.to_morse_button.clicked.connect(self.handle_convert_to_morse_click)
+
+        self.delete_text_button = Button()
+        self.delete_text_button.setObjectName("delete_text_button")
+        self.delete_text_button.clicked.connect(self.handle_delete_text_click)
+
+        input_morse_label = QLabel("Write or paste your morse code:")
+        input_morse_label.setFont(LABEL_FONT)
+
+        self.morse_box = QTextEdit()
+        self.morse_box.setFont(LABEL_FONT)
+        self.morse_box.setMaximumHeight(250)
+        self.morse_box.textChanged.connect(self.morse_box_content_changed)
+
+        self.to_text_button = Button("Convert to text")
+        self.to_text_button.clicked.connect(self.handle_convert_to_text_click)
+
+        self.delete_morse_button = Button()
+        self.delete_morse_button.setObjectName("delete_morse_button")
+        self.delete_morse_button.clicked.connect(self.handle_delete_morse_click)
+
+        self.sound_button = SoundButton(self.handle_sound_button_click)
+        self.sound_button.setObjectName("sound_button")
+
+        # LAYOUT
+        content_layout = QGridLayout()
+
+        content_layout.addWidget(input_text_label, 0, 0)
+        content_layout.addWidget(self.text_box, 1, 0)
+
+        to_morse_row = QHBoxLayout()
+        to_morse_row.addStretch()
+        to_morse_row.addWidget(self.to_morse_button)
+        to_morse_row.addWidget(self.delete_text_button)
+        content_layout.addLayout(to_morse_row, 2, 0)
+
+        content_layout.addWidget(input_morse_label, 0, 1)
+        content_layout.addWidget(self.morse_box, 1, 1)
+
+        to_text_row = QHBoxLayout()
+        to_text_row.addStretch()
+        to_text_row.addWidget(self.to_text_button)
+        to_text_row.addWidget(self.delete_morse_button)
+        content_layout.addLayout(to_text_row, 2, 1)
+
+        spacer = QSpacerItem(20, 20, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed)
+        content_layout.addItem(spacer, 3, 1)
+
+        sound_row = QHBoxLayout()
+        sound_row.addWidget(self.sound_button)
+        sound_row.addStretch()
+        content_layout.addLayout(sound_row, 4, 1)
+
+        return content_layout
+
+
+    def build_error_label(self):
+        error_label = QLabel("")
+        error_label.setFont(ERROR_LABEL_FONT)
+        error_label.setContentsMargins(0, 10, 0, 0)
+        error_label.setMinimumHeight(60)
+        error_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        error_label.setObjectName("error_label")
+
+        return error_label
+
+
+    def handle_convert_to_morse_click(self):
         try:
-            morse_words = line.split("/")
-            word_output = []
-            for word in morse_words:
-                morse_letters = word.split(" ")
-                letter_output = [reversed_alphabet[code] for code in morse_letters if code != ""]
-                word_output.append("".join(letter_output))
-                word_output.append(" ")
-            output.append("".join(word_output))
-            output.append("\n")
+            morse = text_to_morse(self.text_box.toPlainText())
+            self.morse_box.setPlainText(morse)
+            self.delete_error_message()
+        except ValueError as e:
+            self.error_label.setText(str(e))
+
+
+    def handle_convert_to_text_click(self):
+        try:
+            text = morse_to_text(self.morse_box.toPlainText())
+            self.text_box.setPlainText(text)
+            self.delete_error_message()
         except KeyError:
-            error_label["text"] = 'Sorry, only space or the following characters: . - /'
-
-    if len(output) != 0:
-        text_box.delete("1.0", "end")
-        text_box.insert("1.0", "".join(output))
-        error_label["text"] = ""
+            self.error_label.setText("Oops! Invalid morse code.\nAllowed characters: dots ( . ), dashes ( - ) and slashes ( / ) for word spaces.")
 
 
-# ------------------------- PLAY AND STOP AUDIO ------------------------- #
-
-playing = False
-
-def play_morse_step(symbol, index, morse_code, dot_sound, dash_sound):
-    global playing
-
-    if not playing:
-        return
-
-    if pygame.mixer.get_busy():
-        error_label["text"] = "Stop the current playback or wait until it ends."
-        return
-
-    if symbol == '.':
-        dot_sound.play()
-    elif symbol == "-":
-        dash_sound.play()
-    elif symbol == " ":
-        pass
-    elif symbol == "/":
-        pass
-    else:
-        error_label["text"] = "Sorry, no Morse Code to play."
-
-    if index < len(morse_code):
-        window.after(300, play_morse_step, morse_code[index], index+1, morse_code, dot_sound, dash_sound)
-    else:
-        playing = False
+    def handle_delete_text_click(self):
+        self.text_box.setPlainText("")
+        self.delete_error_message()
 
 
-def play_morse():
-    global playing
-    playing = True
-
-    if pygame.mixer.get_busy():
-        error_label["text"] = "Stop the current playback or wait until it ends."
-        return
-
-    morse_code = morse_box.get("1.0", "end").rstrip()
-    if morse_code == "":
-        error_label["text"] = "Sorry, no Morse Code to play."
-        playing = False
-        return
-
-    morse_code = morse_code.replace("\n", "/")
-
-    pygame.mixer.init()
-
-    dot_sound = pygame.mixer.Sound("dot.wav")
-    dash_sound = pygame.mixer.Sound("dash.wav")
-
-    play_morse_step(morse_code[0], 1, morse_code, dot_sound, dash_sound)
+    def handle_delete_morse_click(self):
+        self.morse_box.setPlainText("")
+        self.delete_error_message()
+        self.stop_reproduction()
 
 
-def stop_playing():
-    global playing
-    playing = False
-    pygame.mixer.stop()
-    error_label["text"] = ""
+    def update_text_buttons_state(self):
+        if self.text_box.toPlainText().strip():
+            self.to_morse_button.activate_button()
+            self.delete_text_button.activate_button()
+        else:
+            self.to_morse_button.inactivate_button()
+            self.delete_text_button.inactivate_button()
+        self.delete_error_message()
 
 
-# ---------------------------- UI SETUP ------------------------------- #
+    def morse_box_content_changed(self):
+        text = self.morse_box.toPlainText().strip()
+        if self.player.is_playing:
+            self.stop_reproduction()
 
-TITLE_FONT = "Agency FB"
-TEXT_FONT = "@Microsoft JhengHei UI"
-BG_COLOUR = "SlateGray3"
+        if text:
+            self.to_text_button.activate_button()
+            self.delete_morse_button.activate_button()
+            self.check_morse_code()
+        else:
+            self.to_text_button.inactivate_button()
+            self.delete_morse_button.inactivate_button()
+            self.sound_button.inactivate_button()
 
-window = Tk()
-window.title("Text to Morse Code Converter")
-window.config(padx=110, pady=50, bg=BG_COLOUR)
+        self.delete_error_message()
 
-canvas = Canvas(width=200, height=70, bg=BG_COLOUR, highlightthickness=0)
-telegraph_img = PhotoImage(file="telegraph_thin.png")
-canvas.create_image(100, 35, image=telegraph_img)
-canvas.grid(column=1, row=0, columnspan=2, pady=0)
 
-title_left = Label(text="TEXT TO MORSE", font=(TITLE_FONT, 64, "normal"), bg=BG_COLOUR, fg="black")
-title_left.grid(column=0, row=0, sticky=N+S+E, pady=0)
+    def check_morse_code(self):
+        text = self.morse_box.toPlainText().strip()
+        if text:
+            allowed = {'.', '-', ' ', '/'}
+            if any(ch not in allowed for ch in text):
+                self.sound_button.inactivate_button()
+            else:
+                self.sound_button.activate_button()
 
-title_right = Label(text="MORSE TO TEXT", font=(TITLE_FONT, 64, "normal"), bg=BG_COLOUR, fg="black")
-title_right.grid(column=3, row=0, sticky=N+S+W, pady=0)
 
-title_middle = Label(text="CONVERTER", font=(TITLE_FONT, 35, "normal"), bg=BG_COLOUR, fg="black")
-title_middle.grid(column=1, row=1, sticky=N+W+E, columnspan=2, pady=(0,60))
+    def delete_error_message(self):
+        self.error_label.setText("")
 
-input_text_label = Label(text="Write or Paste your Text:", bg=BG_COLOUR, font=(TEXT_FONT, 16))
-input_text_label.grid(column=0, row=2, sticky=W, columnspan=2)
 
-input_morse_label = Label(text="Write or Paste your Morse Code:", bg=BG_COLOUR, font=(TEXT_FONT, 16))
-input_morse_label.grid(column=2, row=2, sticky=W, columnspan=2, padx=(10,0))
+    def handle_sound_button_click(self):
+        if not self.sound_button.is_active:
+            return
 
-text_box = Text(height=5, width=30, font=(TEXT_FONT, 16))
-text_box.focus()
-text_box.grid(column=0, row=3, sticky=W+E, columnspan=2, padx=(0,10))
+        self.delete_error_message()
+        if self.player.is_playing:
+            self.stop_reproduction()
+        else:
+            self.player.play_morse(self.morse_box.toPlainText())
+            self.sound_button.set_stop_style()
 
-morse_box = Text(height=5, width=30, font=(TEXT_FONT, 16))
-morse_box.grid(column=2, row=3, sticky=W+E, columnspan=2, padx=(10,0))
 
-to_morse_button = Button(text="Convert to Morse", command=convert_to_morse, font=(TEXT_FONT, 12, "bold"), bg="SlateGray4", highlightthickness=0)
-to_morse_button.grid(column=0, row=4, pady=(5,0), sticky=E, columnspan=2, padx=(0,10))
+    def stop_reproduction(self):
+        if not self.player.is_playing:
+            return
+        self.player.stop_playing()
+        self.sound_button.set_play_style()
+        self.check_morse_code()
 
-to_text_button = Button(text="Convert to Text", command=convert_to_text, font=(TEXT_FONT, 12, "bold"), bg="SlateGray4", highlightthickness=0)
-to_text_button.grid(column=3, row=4, pady=(5,0), sticky=E)
 
-play_img = Image.open("play_symbol.png")
-play_img_resized = play_img.resize((40,40))
-play_symbol_img = ImageTk.PhotoImage(play_img_resized)
-play_button = Button(image=play_symbol_img, highlightthickness=0, command=play_morse, bg=BG_COLOUR)
-play_button.grid(column=2, row=5, sticky=W, padx=(10,0))
+    def on_player_finished(self):
+        self.sound_button.set_play_style()
+        self.check_morse_code()
 
-play_label_1 = Label(text="Play ", bg=BG_COLOUR, font=(TEXT_FONT, 13), fg="gray13")
-play_label_1.grid(column=2, row=5, sticky=E)
 
-play_label_2 = Label(text="Morse Code", bg=BG_COLOUR, font=(TEXT_FONT, 13), fg="gray13")
-play_label_2.grid(column=3, row=5, sticky=W)
-
-stop_img = Image.open("stop_symbol.png")
-stop_img_resized = stop_img.resize((40,40))
-stop_symbol_img = ImageTk.PhotoImage(stop_img_resized)
-stop_button = Button(image=stop_symbol_img, highlightthickness=0, command=stop_playing, bg=BG_COLOUR)
-stop_button.grid(column=2, row=6, sticky=W, padx=(10,0), pady=(5,0))
-
-stop_label_1 = Label(text="Stop", bg=BG_COLOUR, font=(TEXT_FONT, 13), fg="gray13")
-stop_label_1.grid(column=2, row=6, sticky=E)
-
-stop_label_2 = Label(text="Playing", bg=BG_COLOUR, font=(TEXT_FONT, 13), fg="gray13")
-stop_label_2.grid(column=3, row=6, sticky=W)
-
-window.grid_columnconfigure(0, weight=4, uniform="equal")  # Mayor tamaño para la columna 0
-window.grid_columnconfigure(1, weight=1, uniform="equal")  # Menor tamaño para la columna 1
-window.grid_columnconfigure(2, weight=1, uniform="equal")  # Menor tamaño para la columna 2
-window.grid_columnconfigure(3, weight=4, uniform="equal")
-
-error_label = Label(text="", bg=BG_COLOUR, font=(TEXT_FONT, 16), fg="gray3")
-error_label.grid(column=0, row=7, columnspan=4, pady=(30,20))
-
-window.mainloop()
+if  __name__ == '__main__':
+    app  = QApplication(sys.argv)
+    window = MainWindow()
+    sys.exit(app.exec())
