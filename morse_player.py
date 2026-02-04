@@ -34,14 +34,18 @@ class MorsePlayer(QObject):
         symbol = morse_code[index]
         if symbol == '.':
             self.dot_sound.play()
+            delay = 200
         elif symbol == "-":
             self.dash_sound.play()
+            delay = 400
         elif symbol == " ":
-            pass
+            delay = 200
         elif symbol == "/":
-            pass
+            delay = 600
+        else:
+            return
 
-        QTimer.singleShot(300, lambda: self._play_morse_step(morse_code, index + 1))
+        QTimer.singleShot(delay, lambda: self._play_morse_step(morse_code, index + 1))
 
 
     def stop_playing(self):

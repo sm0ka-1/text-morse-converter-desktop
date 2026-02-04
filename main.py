@@ -186,10 +186,12 @@ class MainWindow(QMainWindow):
 
 
     def handle_convert_to_morse_click(self):
+        previous_morse = self.morse_box.toPlainText()
         try:
             morse = text_to_morse(self.text_box.toPlainText())
-            self.morse_box.setPlainText(morse)
-            self.delete_error_message()
+            if previous_morse != morse:
+                self.morse_box.setPlainText(morse)
+                self.delete_error_message()
         except ValueError as e:
             self.error_label.setText(str(e))
 
@@ -244,7 +246,7 @@ class MainWindow(QMainWindow):
     def check_morse_code(self):
         text = self.morse_box.toPlainText().strip()
         if text:
-            allowed = {'.', '-', ' ', '/'}
+            allowed = {'.', '-', ' ', '/', '\n'}
             if any(ch not in allowed for ch in text):
                 self.sound_button.inactivate_button()
             else:
