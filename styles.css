@@ -11,38 +11,44 @@ QTextEdit {
     background-color: white;
 }
 
-QPushButton {
-    color: black;
-    border-right: 1px solid black;
-    border-bottom: 1px solid black;
-    border-radius: 0;
-    padding: 6px 10px;
+QFrame#button {
+    border-right: 1px solid;
+    border-bottom: 1px solid;
 }
 
-QPushButton#delete_text_button, QPushButton#delete_morse_button {
-    image: url("./assets/images/bin.png");
-    padding: 6px 0px;
+QFrame#button:disabled {
+    background-color: #69839e;
+    border-color: #304051;
 }
 
-QFrame#sound_button {
-    padding: 5px;
-    border: 1px solid #57636f;
-    border-radius: 3px;
-}
-
-QFrame#sound_button:enabled {
-    background-color: #a4b4c5;
-}
-
-QFrame#sound_button:disabled {
-    background-color: #8c9fb2;
-}
-
-QFrame#sound_button:enabled:hover {
+QFrame#button:enabled{
+    background-color: #304051;
     border-color: white;
 }
 
-QFrame#sound_button:enabled:pressed {
-    border-width: 2px;
-    background-color: #6c8299;
+QFrame#button:enabled:hover {
+    background-color: #74a8ce;
+    border: 2px solid white;
+}
+
+QScrollBar:vertical {
+    width: 3px;
+    background: rgba(105, 131, 158, 128);
+}
+
+QScrollBar::handle:vertical {
+    background: rgba(48, 64, 81, 128); /* thumb */
+    border-radius: 3px;
+}
+
+QScrollBar::handle:vertical:hover {
+    background: #304051;
+}
+
+QScrollBar::add-line:vertical,
+QScrollBar::sub-line:vertical,
+QScrollBar::add-page:vertical,
+QScrollBar::sub-page:vertical {
+    background: none;
+    height: 0; /* hides arrows and extra areas */
 }

@@ -3,35 +3,42 @@ from PyQt6.QtCore import QObject, pyqtSignal, QTimer
 
 
 class MorsePlayer(QObject):
-    finished_reproduction = pyqtSignal()
+    something_changed = pyqtSignal()
+    highlight_changed = pyqtSignal(int)
 
     def __init__(self):
         super().__init__()
         self.is_playing = False
-        self.dot_sound = None
-        self.dash_sound = None
-        self.on_finished_callback = None
-
-
-    def play_morse(self, morse_code: str):
-        self.is_playing = True
-
-        morse_code = morse_code.replace("\n", "/")
+        self.symbols = []
+        self.currentIndex = 0
 
         pygame.mixer.init()
         self.dot_sound = pygame.mixer.Sound("assets/sounds/dot.wav")
         self.dash_sound = pygame.mixer.Sound("assets/sounds/dash.wav")
 
-        self._play_morse_step(morse_code, 0)
+
+    def play(self, morse_code: str):
+        self.is_playing = True
+        self.symbols = morse_code.replace("\n", "/")
+        self.highlight_changed.emit(self.currentIndex)
+        self.something_changed.emit()
+        self._play_morse_step()
 
 
-    def _play_morse_step(self, morse_code: str, index: int):
-        if not self.is_playing or index >= len(morse_code):
+    def _play_morse_step(self):
+        if self.currentIndex >= len(self.symbols):
             self.is_playing = False
-            self.finished_reproduction.emit()
+            self.currentIndex = 0
+            self.highlight_changed.emit(-1)
+            self.something_changed.emit()
             return
 
-        symbol = morse_code[index]
+        if not self.is_playing:
+            self.highlight_changed.emit(self.currentIndex)
+            self.something_changed.emit()
+            return
+
+        symbol = self.symbols[self.currentIndex]
         if symbol == '.':
             self.dot_sound.play()
             delay = 200
@@ -43,11 +50,31 @@ class MorsePlayer(QObject):
         elif symbol == "/":
             delay = 600
         else:
+            self.is_playing = False
+            self.highlight_changed.emit(-1)
+            self.something_changed.emit()
             return
 
-        QTimer.singleShot(delay, lambda: self._play_morse_step(morse_code, index + 1))
+        self.highlight_changed.emit(self.currentIndex)
+        self.currentIndex += 1
+        self.something_changed.emit()
+
+        QTimer.singleShot(delay, lambda: self._play_morse_step())
 
 
-    def stop_playing(self):
+    def pause(self):
         self.is_playing = False
         pygame.mixer.stop()
+        self.highlight_changed.emit(self.currentIndex)
+        self.something_changed.emit()
+
+
+    def stop(self):
+        self.is_playing = False
+        pygame.mixer.stop()
+
+        self.currentIndex = 0
+        self.symbols = []
+
+        self.highlight_changed.emit(-1)
+        self.something_changed.emit()

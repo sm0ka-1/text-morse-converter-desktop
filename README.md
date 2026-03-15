@@ -1,23 +1,26 @@
-Text Morse Code Converter Desktop
+**Text Morse Code Converter Desktop**
 
-Desktop application to convert text to Morse code and vice versa, with Morse code audio playback. Developed using PyQt6 for a clean and responsive interface.
+Desktop app to convert text to Morse code and vice versa, with real-time conversion and Morse code audio playback. Developed using PyQt6 for a clean and responsive interface.
 
-Features
-- Convert text to Morse and Morse to text
-- Audio playback of Morse code with a single Play/Stop button
-- Buttons activate and deactivate automatically based on context
-- Playback stops automatically if the Morse code content changes
-- Modular code with UI, conversion logic, and player separated
+**Features** ✨
+- 🔄 **Real-time bidirectional conversion**: text ↔ Morse code 
+- 🎵 **Morse code audio playback**: **Play / Pause / Stop** controls 
+- 💡 **Highlight** of the currently played Morse character 
+- 📜 **Auto-scroll** Morse view to keep highlight visible 
+- 🔘 Buttons **enable/disable automatically** based on context
+- ⏹ Playback stops automatically if Morse content changes 
+- 🧩 **Modular code** with UI, conversion logic, and player separated
 
-Usage
+**Usage** 🛠️
 - Run the application:
+  ```bash
   python main.py
-- Enter text in the left box and click Convert to Morse
-- Enter Morse code in the right box and click Convert to text
-- Click the sound button to play or stop the Morse audio
+  ```
+- Enter text in the left box or Morse code in the right box — conversion happens automatically
+- Use the Play / Pause / Stop buttons to control Morse audio playback
+- The currently played character is highlighted and the view scrolls automatically to follow it
 
-Requirements
+**Requirements** 📦
 - Python 3.10 or higher
 - PyQt6
 - pygame
-- pandas

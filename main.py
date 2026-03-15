@@ -1,9 +1,9 @@
 import sys
-from PyQt6.QtWidgets import QApplication, QMainWindow, QWidget, QLabel, QVBoxLayout, QHBoxLayout, QGridLayout, QTextEdit, QSpacerItem, QSizePolicy
-from PyQt6.QtGui import QFont, QPixmap
+from PyQt6.QtWidgets import QApplication, QMainWindow, QWidget, QLabel, QVBoxLayout, QHBoxLayout, QGridLayout, \
+    QTextEdit
+from PyQt6.QtGui import QFont, QPixmap, QTextCursor, QTextCharFormat, QColor
 from PyQt6.QtCore import Qt
 from button import Button
-from sound_button import SoundButton
 from converter import text_to_morse, morse_to_text
 from morse_player import MorsePlayer
 
@@ -19,7 +19,8 @@ class MainWindow(QMainWindow):
         super().__init__()
 
         self.player = MorsePlayer()
-        self.player.finished_reproduction.connect(self.on_player_finished)
+        self.player.something_changed.connect(self.update_buttons)
+        self.player.highlight_changed.connect(self.update_highlight)
 
         self.initialize_ui()
 
@@ -36,7 +37,7 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(main_widget)
 
         main_layout = QVBoxLayout()
-        main_layout.setContentsMargins(30, 30, 30, 30)
+        main_layout.setContentsMargins(50, 30, 50, 30)
         main_widget.setLayout(main_layout)
 
         title = self.build_title()
@@ -45,8 +46,12 @@ class MainWindow(QMainWindow):
         main_layout.addSpacing(30)
         main_layout.addStretch(1)
 
-        content_layout = self.build_main_content()
-        main_layout.addLayout(content_layout)
+        converters_layout = self.build_converters()
+        main_layout.addLayout(converters_layout)
+
+        buttons_layout = self.build_buttons()
+        main_layout.addSpacing(20)
+        main_layout.addLayout(buttons_layout)
 
         self.error_label = self.build_error_label()
 
@@ -107,7 +112,7 @@ class MainWindow(QMainWindow):
         return title
 
 
-    def build_main_content(self):
+    def build_converters(self):
         # WIDGETS
         input_text_label = QLabel("Write or paste your text:")
         input_text_label.setFont(LABEL_FONT)
@@ -115,14 +120,8 @@ class MainWindow(QMainWindow):
         self.text_box = QTextEdit()
         self.text_box.setFont(LABEL_FONT)
         self.text_box.setMaximumHeight(250)
-        self.text_box.textChanged.connect(self.update_text_buttons_state)
-
-        self.to_morse_button = Button("Convert to morse")
-        self.to_morse_button.clicked.connect(self.handle_convert_to_morse_click)
-
-        self.delete_text_button = Button()
-        self.delete_text_button.setObjectName("delete_text_button")
-        self.delete_text_button.clicked.connect(self.handle_delete_text_click)
+        self.text_box.setMaximumWidth(500)
+        self.text_box.textChanged.connect(self.handle_text_box_change)
 
         input_morse_label = QLabel("Write or paste your morse code:")
         input_morse_label.setFont(LABEL_FONT)
@@ -130,52 +129,50 @@ class MainWindow(QMainWindow):
         self.morse_box = QTextEdit()
         self.morse_box.setFont(LABEL_FONT)
         self.morse_box.setMaximumHeight(250)
-        self.morse_box.textChanged.connect(self.morse_box_content_changed)
-
-        self.to_text_button = Button("Convert to text")
-        self.to_text_button.clicked.connect(self.handle_convert_to_text_click)
-
-        self.delete_morse_button = Button()
-        self.delete_morse_button.setObjectName("delete_morse_button")
-        self.delete_morse_button.clicked.connect(self.handle_delete_morse_click)
-
-        self.sound_button = SoundButton(self.handle_sound_button_click)
-        self.sound_button.setObjectName("sound_button")
+        self.morse_box.setMaximumWidth(500)
+        self.morse_box.textChanged.connect(self.handle_morse_box_change)
 
         # LAYOUT
-        content_layout = QGridLayout()
+        converters_layout = QHBoxLayout()
+        text_area_layout = QVBoxLayout()
+        morse_area_layout = QVBoxLayout()
 
-        content_layout.addWidget(input_text_label, 0, 0)
-        content_layout.addWidget(self.text_box, 1, 0)
+        text_area_layout.addWidget(input_text_label)
+        text_area_layout.addWidget(self.text_box)
 
-        to_morse_row = QHBoxLayout()
-        to_morse_row.addStretch()
-        to_morse_row.addWidget(self.to_morse_button)
-        to_morse_row.addWidget(self.delete_text_button)
-        content_layout.addLayout(to_morse_row, 2, 0)
+        morse_area_layout.addWidget(input_morse_label)
+        morse_area_layout.addWidget(self.morse_box)
 
-        content_layout.addWidget(input_morse_label, 0, 1)
-        content_layout.addWidget(self.morse_box, 1, 1)
+        converters_layout.addStretch()
+        converters_layout.addLayout(text_area_layout, stretch=1)
+        converters_layout.addLayout(morse_area_layout, stretch=1)
+        converters_layout.addStretch()
 
-        to_text_row = QHBoxLayout()
-        to_text_row.addStretch()
-        to_text_row.addWidget(self.to_text_button)
-        to_text_row.addWidget(self.delete_morse_button)
-        content_layout.addLayout(to_text_row, 2, 1)
+        return converters_layout
 
-        spacer = QSpacerItem(20, 20, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed)
-        content_layout.addItem(spacer, 3, 1)
 
-        sound_row = QHBoxLayout()
-        sound_row.addWidget(self.sound_button)
-        sound_row.addStretch()
-        content_layout.addLayout(sound_row, 4, 1)
+    def build_buttons(self):
+        buttons_layout = QHBoxLayout()
 
-        return content_layout
+        path = "./assets/images/"
+
+        self.play_button = Button(f"{path}play_disabled.png", f"{path}play_enabled.png", f"{path}play_hover.png", "Play", lambda: self.player.play(self.morse_box.toPlainText()))
+        self.pause_button = Button(f"{path}pause_disabled.png", f"{path}pause_enabled.png", f"{path}play_hover.png", "Pause", self.player.pause)
+        self.stop_button = Button(f"{path}stop_disabled.png", f"{path}stop_enabled.png", f"{path}play_hover.png", "Stop", self.player.stop)
+        self.clear_button = Button(f"{path}bin_disabled.png", f"{path}bin_enabled.png", f"{path}bin_hover.png", "Clear", self.handle_clear_button_click)
+
+        buttons_layout.addStretch()
+        buttons_layout.addWidget(self.play_button)
+        buttons_layout.addWidget(self.pause_button)
+        buttons_layout.addWidget(self.stop_button)
+        buttons_layout.addWidget(self.clear_button)
+        buttons_layout.addStretch()
+
+        return buttons_layout
 
 
     def build_error_label(self):
-        error_label = QLabel("")
+        error_label = QLabel()
         error_label.setFont(ERROR_LABEL_FONT)
         error_label.setContentsMargins(0, 10, 0, 0)
         error_label.setMinimumHeight(60)
@@ -185,101 +182,112 @@ class MainWindow(QMainWindow):
         return error_label
 
 
-    def handle_convert_to_morse_click(self):
-        previous_morse = self.morse_box.toPlainText()
+    def handle_text_box_change(self):
+        self.update_buttons()
+        self.delete_error_message()
         try:
             morse = text_to_morse(self.text_box.toPlainText())
-            if previous_morse != morse:
+            if self.morse_box.toPlainText() != morse:
+                if self.player.is_playing:
+                    self.player.stop()
+                self.morse_box.blockSignals(True)
                 self.morse_box.setPlainText(morse)
-                self.delete_error_message()
+                self.morse_box.blockSignals(False)
         except ValueError as e:
-            self.error_label.setText(str(e))
+            self.show_error_message(str(e))
+            self.morse_box.blockSignals(True)
+            self.morse_box.setPlainText("")
+            self.morse_box.blockSignals(False)
 
 
-    def handle_convert_to_text_click(self):
+    def handle_morse_box_change(self):
+        self.update_buttons()
+        self.delete_error_message()
         try:
             text = morse_to_text(self.morse_box.toPlainText())
-            self.text_box.setPlainText(text)
-            self.delete_error_message()
-        except KeyError:
-            self.error_label.setText("Oops! Invalid morse code.\nAllowed characters: dots ( . ), dashes ( - ) and slashes ( / ) for word spaces.")
+            if self.text_box.toPlainText() != text and self.text_box.toPlainText().upper() != text:
+                if self.player.is_playing:
+                    self.player.stop()
+                self.text_box.blockSignals(True)
+                self.text_box.setPlainText(text)
+                self.text_box.blockSignals(False)
+        except ValueError as e:
+            self.show_error_message(str(e))
+            self.text_box.blockSignals(True)
+            self.text_box.setPlainText("")
+            self.text_box.blockSignals(False)
 
 
-    def handle_delete_text_click(self):
-        self.text_box.setPlainText("")
-        self.delete_error_message()
-
-
-    def handle_delete_morse_click(self):
-        self.morse_box.setPlainText("")
-        self.delete_error_message()
-        self.stop_reproduction()
-
-
-    def update_text_buttons_state(self):
-        if self.text_box.toPlainText().strip():
-            self.to_morse_button.activate_button()
-            self.delete_text_button.activate_button()
-        else:
-            self.to_morse_button.inactivate_button()
-            self.delete_text_button.inactivate_button()
-        self.delete_error_message()
-
-
-    def morse_box_content_changed(self):
-        text = self.morse_box.toPlainText().strip()
+    def handle_clear_button_click(self):
         if self.player.is_playing:
-            self.stop_reproduction()
+            self.player.stop()
+            self.player.currentIndex = 0
 
-        if text:
-            self.to_text_button.activate_button()
-            self.delete_morse_button.activate_button()
-            self.check_morse_code()
-        else:
-            self.to_text_button.inactivate_button()
-            self.delete_morse_button.inactivate_button()
-            self.sound_button.inactivate_button()
-
+        self.text_box.setPlainText("")
+        self.morse_box.setPlainText("")
+        self.update_buttons()
         self.delete_error_message()
 
 
-    def check_morse_code(self):
-        text = self.morse_box.toPlainText().strip()
-        if text:
-            allowed = {'.', '-', ' ', '/', '\n'}
-            if any(ch not in allowed for ch in text):
-                self.sound_button.inactivate_button()
-            else:
-                self.sound_button.activate_button()
+    def update_buttons(self):
+        text = self.text_box.toPlainText().strip()
+        morse = self.morse_box.toPlainText().strip()
+        playable_morse = self.is_playable_morse_code(morse) if morse else False
+
+        self.clear_button.setEnabled(bool(text) or bool(morse))
+        self.play_button.setEnabled(playable_morse and not self.player.is_playing)
+        self.pause_button.setEnabled(playable_morse and self.player.is_playing)
+        self.stop_button.setEnabled(self.player.is_playing or self.player.currentIndex > 0)
+
+
+    def is_playable_morse_code(self, morse_code):
+        allowed = {'.', '-', ' ', '/', '\n'}
+        if any(ch not in allowed for ch in morse_code):
+            return False
+        else:
+            return True
+
+
+    def show_error_message(self, message):
+        self.error_label.setText(message)
+        if self.player.is_playing:
+            self.player.stop()
 
 
     def delete_error_message(self):
         self.error_label.setText("")
 
 
-    def handle_sound_button_click(self):
-        if not self.sound_button.is_active:
+    def update_highlight(self, index: int):
+        text = self.morse_box.toPlainText()
+
+        if index < 0 or index >= len(text):
+            self.morse_box.setExtraSelections([])
             return
 
-        self.delete_error_message()
-        if self.player.is_playing:
-            self.stop_reproduction()
-        else:
-            self.player.play_morse(self.morse_box.toPlainText())
-            self.sound_button.set_stop_style()
+        cursor = self.morse_box.textCursor()
+        cursor.setPosition(index)
+        cursor.movePosition(QTextCursor.MoveOperation.Right,
+                            QTextCursor.MoveMode.KeepAnchor, 1)
+        highlight = QTextEdit.ExtraSelection()
+        highlight.cursor = cursor
 
+        fmt = QTextCharFormat()
+        fmt.setBackground(QColor(96, 189, 255, 128))
+        highlight.format = fmt
 
-    def stop_reproduction(self):
-        if not self.player.is_playing:
-            return
-        self.player.stop_playing()
-        self.sound_button.set_play_style()
-        self.check_morse_code()
+        self.morse_box.setExtraSelections([highlight])
 
+        # Scroll synchronization
+        highlight_rect = self.morse_box.cursorRect(cursor)
+        viewport_rect = self.morse_box.viewport().rect()
+        scrollbar = self.morse_box.verticalScrollBar()
 
-    def on_player_finished(self):
-        self.sound_button.set_play_style()
-        self.check_morse_code()
+        if highlight_rect.bottom() > viewport_rect.bottom():
+            scrollbar.setValue(scrollbar.value() + highlight_rect.bottom() - viewport_rect.bottom())
+        elif highlight_rect.top() < viewport_rect.top():
+            scrollbar.setValue(scrollbar.value() - viewport_rect.top() + highlight_rect.top())
+
 
 
 if  __name__ == '__main__':
